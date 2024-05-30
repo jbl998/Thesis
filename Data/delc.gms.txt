@@ -1,0 +1,173 @@
+* Gemstone data instance
+* $gdxin GemstoneDataFultonv2.gdx
+* $gdxin GemstoneDatav14.gdx
+$gdxin %1.gdx
+
+Set T(*);
+Set K(*), GEN(K), HYDRO(K), RESERVOIR(K), STORE(K), RENEW(K);
+Set B(*), I(*), A(*), PRODN(A), W(*);
+
+$ontext
+set N(*) / '2005', '2011' /;
+* set N(*) / '2012' /;
+set DRY(N) / '2005' /; 
+$load T K GEN HYDRO RESERVOIR STORE RENEW B I A PRODN W
+$offtext
+set N(*), DRY(N);
+$load T N DRY K GEN HYDRO RESERVOIR STORE RENEW B I A PRODN W
+
+set USED(A);
+USED(A) = yes;
+
+alias(i,j);
+* Philpott addition
+alias(w,w0,w1,w2,w3);
+
+parameters geothermalloadfactor,windloadfactor,batteryEff,fractionLR,maxCarbon,
+maxnrEnergy,maxNR,capR,v,mufactor,nufactor;
+
+parameter chargerate(k);
+parameter CVARalpha;
+parameter lambda;
+
+$load geothermalloadfactor, windloadfactor, batteryEff, fractionLR
+$load maxCarbon, maxNR, capR, v, mufactor, nufactor
+$load chargerate,CVARalpha,lambda,maxnrEnergy
+* chargerate(k)$(not store(k)) = 1;
+
+parameter fcap(i,j);
+parameter TonnesCO2(k);
+parameter capU(a,i,k);
+parameter u(a,i,k);
+parameter seasonhours(t,b);
+*parameter d(a,i,b);
+parameter seasonhours(t,b);
+parameter SILoad(t,b);
+parameter HAYLoad(t,b);
+parameter NILoad(t,b);
+parameter SIWindS0(t,b);
+parameter HAYWindS0(t,b);
+parameter NIWindS0(t,b);
+parameter SIWindS1(t,b);
+parameter HAYWindS1(t,b);
+parameter NIWindS1(t,b);
+* Probability of getting full load factor (scenario S1) in block
+* 1 season t, otherwise get 0 wind
+parameter Windprob(t) ;
+
+*parameter TIWLoad(i,b);
+*parameter ProcessLoad(i,b);
+*parameter EVLoad(i,b);
+*parameter growth;
+
+parameter inflowmuSI(n,t);
+parameter inflowmuNI(n,t);
+parameter inflownuSI(n,t);
+parameter inflownuNI(n,t);
+parameter alphaSI(t,b);
+parameter alphaNI(t,b);
+parameter SIinsolation(t,b);
+parameter HAYinsolation(t,b);
+parameter NIinsolation(t,b);
+parameter capcost(k);
+parameter gC(k);
+parameter oC(k);
+*parameter demandscale(t);
+*parameter inflowscale(t);
+parameter reservoircap(i);
+
+$load fcap
+$load TonnesCO2, capU, u
+*$load growth
+*$load hours, d
+$load seasonhours,SILoad,HAYLoad,NILoad
+$load SIWindS0, HAYWindS0,NIWindS0
+$load SIWindS1, HAYWindS1,NIWindS1
+$load Windprob
+*$load TIWLoad,ProcessLoad, EVLoad
+$load reservoircap
+
+$load inflowmuSI,inflowmuNI,inflownuSI, inflownuNI,alphaSI,alphaNI
+$load SIinsolation,HAYinsolation,NIinsolation
+$load capcost, gC, oC
+
+* Derived parameters
+parameter storagegatewidth;
+storagegatewidth = 500.0;
+parameter eff(k) ;
+eff(STORE)=batteryEff;
+parameter coeff(k);
+coeff(k) = 0.001;
+parameter prob(n);
+prob(n) = [1/card(n)];
+parameter wprob(w,t);
+wprob('0',t) = Windprob(t);
+wprob('1',t) = 1.0-Windprob(t);
+
+* Philpott addition
+parameter wtreeprob(w0,w1,w2,w3);
+wtreeprob(w0,w1,w2,w3) = wprob(w0,'0')*wprob(w1,'1')*wprob(w2,'2')*wprob(w3,'3');
+
+parameter  eC(k)    NZD annual capital cost;
+eC(k) = capcost(k);
+
+parameter seasondays(t,i);
+seasondays(t,i) = sum(b, seasonhours(t,b))/24;
+
+parameter seasondemand(t,a,i,b);
+seasondemand(t,a,i,b)=0;
+$ontext
+parameter extraload(i,b);
+extraload(i,b) = TIWLoad(i,b)+ProcessLoad(i,b)+EVLoad(i,b);
+
+seasondemand(t,'dem','SI',b) = SILoad2017(t,b)*growth + extraload('SI',b);
+seasondemand(t,'dem','HAY',b) = HAYLoad2017(t,b)*growth + extraload('HAY',b);
+seasondemand(t,'dem','NI',b) = NILoad2017(t,b)*growth + extraload('NI',b);
+$offtext
+seasondemand(t,'dem','SI',b) = SILoad(t,b);
+seasondemand(t,'dem','HAY',b) = HAYLoad(t,b);
+seasondemand(t,'dem','NI',b) = NILoad(t,b);
+
+parameter alpha(t,i,b) scale peaking RoR mu;
+alpha(t,i,b)=1.0;
+alpha(t,'SI',b) = alphaSI(t,b);
+alpha(t,'NI',b) = alphaNI(t,b);
+
+parameter mu(i,k,n,b) limit on capacity of wind or inflow event ;
+* taken from historical data 2005-2017.
+  mu(i,k,n,b) = 1.0;
+  mu(i,'GEOT',n,b) = geothermalloadfactor;
+  mu(i,'WIND',n,b) = windloadfactor;
+*  mu(i,'HYDROr',n,b) = inflowmu(n,i);
+
+parameter nu(i,k,n) limit on energy of drought event  ;
+  nu(i,k,n) = 1.0;
+
+parameter tmu(t,i,k,n,w,b);
+*tmu(t,i,k,n,b) = mu(i,k,n,b);
+*tmu(t,i,'HYDROr',n,b)= mu(i,'HYDROr',n,b);
+tmu(t,i,k,n,w,b) = mu(i,k,n,b);
+tmu(t,'SI','HYDROr',n,w,b) =  alpha(t,'SI',b)*inflowmuSI(n,t);
+tmu(t,'NI','HYDROr',n,w,b) =  alpha(t,'NI',b)*inflowmuNI(n,t);
+tmu(t,'SI','SOLAR',n,w,b) = SIinsolation(t,b);
+tmu(t,'HAY','SOLAR',n,w,b) = HAYinsolation(t,b);
+tmu(t,'NI','SOLAR',n,w,b) = NIinsolation(t,b);
+* Add wind intermittency
+tmu(t,'SI','WIND',n,'0',b) = SIWindS0(t,b);
+tmu(t,'HAY','WIND',n,'0',b) = HAYWindS0(t,b);
+tmu(t,'NI','WIND',n,'0',b) = NIWindS0(t,b);
+tmu(t,'SI','WIND',n,'1',b) = SIWindS1(t,b);
+tmu(t,'HAY','WIND',n,'1',b) = HAYWindS1(t,b);
+tmu(t,'NI','WIND',n,'1',b) = NIWindS1(t,b);
+
+parameter tnu(t,i,k,n);
+tnu(t,i,k,n) = nu(i,k,n);
+*tnu(t,i,'HYDROs',n)= nu(i,'HYDROs',n)*inflowscale(t);
+tnu(t,'SI','HYDROs',n) = inflownuSI(n,t);
+tnu(t,'NI','HYDROs',n) = inflownuNI(n,t);
+
+set ctype / 'Invest', 'Maintain', 'Operate', 'LostLoad' /;
+parameter build(r,a,i,k);
+parameter ZZ(r,n,w,t), ZL(r,n,w,t), TotalCost(r), lostMWhours(r,a), capacity(r,a,i,k);
+parameter ExpCost(r,ctype), TotalCostM(r), TotalCarbon(r), Co2price(r);
+parameter lostloadenergy(a,i);
