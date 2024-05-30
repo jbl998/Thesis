@@ -223,4 +223,3 @@ def runModel(config=cfg.currentConfig):
 
     with open(f"{cfg.pathJSON}", "w") as f:
         json.dump(data, f, indent="    ")
-runModel()
